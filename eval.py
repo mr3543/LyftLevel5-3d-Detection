@@ -40,6 +40,29 @@ def load_groundtruth_boxes(nuscenes, sample_tokens):
             
     return gt_box3ds
 
+def write_submission(pred_boxes):
+    sub = {}
+    for i in range(len(pred_boxes)):
+        yaw = 2*np.arccos(pred_boxes[i].rotation[0])
+        pred = str(pred_boxesi[i].score/255) + ' ' + \
+               str(pred_boxes[i].center_x) + ' ' + \
+               str(pred_boxes[i].center_y) + ' ' + \
+               str(pred_boxes[i].center_z) + ' ' + \
+               str(pred_boxes[i].width) + ' ' + \
+               str(pred_boxes[i].length) + ' ' + \
+               str(pred_boxes[i].height) + ' ' + \
+               str(yaw) + ' ' + \
+               str(pred_boxes[i].name) + ' '
+
+        if pred_boxes[i].sample_token in sub.keys():
+            sub[pred_boxes[i].sample_token] += pred
+        else:
+            sub[pred_boxes[i].sample_token] = pred
+
+    sub = pd.DataFrame(list(sub.items()))
+    sub.columns = ['Id','PredictionString']
+    sub.to_csv('lyft3d_pred.csv',index=False)
+
 
 epoch_to_load = cfg.TRAIN.NUM_EPOCHS
 batch_size = cfg.TRAIN.BATCH_SIZE

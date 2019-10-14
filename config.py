@@ -24,6 +24,8 @@ cfg.DATA.VAL_DATA_FOLDER = osp.join(cfg.DATA.ARTIFACTS_FOLDER,'bev_val_data')
 cfg.DATA.VOXEL_SIZE = (0.4,0.4,1.5)
 cfg.DATA.Z_OFFSET = -2.0
 cfg.DATA.BEV_SHAPE = (336,336,3)
+cfg.DATA.NUM_SWEEPS = 10
+cfg.DATA.MIN_DISTANCE = 1.0
 
 cfg.DATA.BOX_SCALE = 0.8
 cfg.DATA.NUM_WORKERS = os.cpu_count()

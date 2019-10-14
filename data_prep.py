@@ -116,7 +116,7 @@ def draw_boxes(im, voxel_size, boxes, classes, z_offset=0.0):
 
         cv2.drawContours(im, np.int0([corners_voxel]), 0, (class_color, class_color, class_color), -1)
 
-def prepare_training_data_for_scene(first_sample_token, output_folder, bev_shape, voxel_size, z_offset, box_scale,level5data):
+def prepare_training_data_for_scene(first_sample_token, output_folder, bev_shape, voxel_size, z_offset, box_scale,num_sweeps,min_distance,level5data):
     """
     Given a first sample token (in a scene), output rasterized input volumes and targets in birds-eye-view perspective.
 
@@ -142,7 +142,7 @@ def prepare_training_data_for_scene(first_sample_token, output_folder, bev_shape
                                             inverse=False)
 
         try:
-            lidar_pointcloud = LidarPointCloud.from_file(lidar_filepath)
+            lidar_pointcloud = LidarPointCloud.from_file_multisweep(level5data,sample,'LIDAR_TOP','LIDAR_TOP',num_sweeps=num_sweeps,min_distance=min_distance)
             lidar_pointcloud.transform(car_from_sensor)
         except Exception as e:
             print ("Failed to load Lidar Pointcloud for {}: {}:".format(sample_token, e))
@@ -209,6 +209,8 @@ if __name__ == '__main__':
     z_offset = cfg.DATA.Z_OFFSET
     bev_shape = cfg.DATA.BEV_SHAPE
     box_scale = cfg.DATA.BOX_SCALE
+    num_sweeps = cfg.DATA.NUM_SWEEPS
+    min_distance = cfg.DATA.MIN_DISTANCE
 
     for df, data_folder in [(train_df, train_data_folder), (validation_df, validation_data_folder)]:
         print("Preparing data into {} using {} workers".format(data_folder, NUM_WORKERS))
@@ -218,7 +220,8 @@ if __name__ == '__main__':
     
         process_func = partial(prepare_training_data_for_scene,
                            output_folder=data_folder, bev_shape=bev_shape, voxel_size=voxel_size, 
-                           z_offset=z_offset, box_scale=box_scale,level5data=l5d)
+                           z_offset=z_offset, box_scale=box_scale,
+                           num_sweeps=num_sweeps,min_distance=min_distance,level5data=l5d)
 
         pool = Pool(NUM_WORKERS)
         for _ in tqdm(pool.imap_unordered(process_func, first_samples), total=len(first_samples)):
