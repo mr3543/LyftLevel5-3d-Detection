@@ -15,6 +15,10 @@ cfg.DATA.DATA_PATH
 cfg.DATA.JSON_PATH
 
 cfg.DATA.CLASSES = ["car", "motorcycle", "bus", "bicycle", "truck", "pedestrian", "other_vehicle", "animal", "emergency_vehicle"]
+cfg.DATA.AVG_CAT_HEIGHTS = {'animal':0.51,'bicycle':1.44,'bus':3.44,'car':1.72,'emergency_vehicle':2.39,'motorcycle':1.59,'other_vehicle':3.23,'pedestrian':1.78,'truck':3.44}
+
+cfg.DATA.IND_TO_NAME = {i+1:cfg.DATA.CLASSES[i] for i in range(len(cfg.DATA.CLASSES))}
+
 
 cfg.DATA.ARTIFACTS_FOLDER = './artifacts/'
 

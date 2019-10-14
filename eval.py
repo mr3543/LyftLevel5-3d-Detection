@@ -168,6 +168,8 @@ for i in tqdm_notebook(range(len(predictions))):
 
 gt_box3ds = load_groundtruth_boxes(level5data, sample_tokens)
 pred_box3ds = []
+height_dict = cfg.DATA.AVG_CAT_HEIGHT
+ind_to_name = cfg.DATA.IND_TO_NAME
 
 # This could use some refactoring..
 for (sample_token, sample_boxes, sample_detection_scores, sample_detection_class) in tqdm_notebook(zip(sample_tokens, detection_boxes, detection_scores, detection_classes), total=len(sample_tokens)):
@@ -203,7 +205,7 @@ for (sample_token, sample_boxes, sample_detection_scores, sample_detection_class
 
 
     # We don't know the height of our boxes, let's assume every object is the same height.
-    box_height = 1.75
+    box_height = [height_dict[name] for name in sample_detection_class]
 
     # Note: Each of these boxes describes the ground corners of a 3D box.
     # To get the center of the box in 3D, we'll have to add half the height to it.
