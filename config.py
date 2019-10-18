@@ -29,9 +29,9 @@ cfg.DATA.TEST_DATA_FOLDER = osp.join(cfg.DATA.ARTIFACTS_FOLDER,'bev_test_data')
 
 cfg.DATA.BOX_DB_FILE = osp.join(cfg.DATA.ARTIFACTS_FOLDER,'box_db.pkl')
 
-cfg.DATA.VOXEL_SIZE = (0.4,0.4,1.5)
-cfg.DATA.Z_OFFSET = -2.0
-cfg.DATA.BEV_SHAPE = (336,336,3)
+cfg.DATA.VOXEL_SIZE = (0.4,0.4,.2)
+cfg.DATA.Z_OFFSET = 0.0
+cfg.DATA.BEV_SHAPE = (336,336,60)
 cfg.DATA.NUM_SWEEPS = 10
 cfg.DATA.MIN_DISTANCE = 1.0
 

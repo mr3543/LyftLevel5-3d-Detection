@@ -124,7 +124,7 @@ class UNetUpBlock(nn.Module):
 
 
 def get_unet_model(in_channels=3, num_output_classes=2):
-    model = UNet(in_channels=in_channels, n_classes=num_output_classes, wf=5, depth=4, padding=True, up_mode='upsample')
+    model = UNet(in_channels=in_channels, n_classes=num_output_classes, wf=6, depth=5, padding=True, up_mode='upconv')
     
     # Optional, for multi GPU training and inference
     model = nn.DataParallel(model)

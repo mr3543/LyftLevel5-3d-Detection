@@ -315,6 +315,8 @@ def make_prediction_boxes(model,dataloader,num_inputs,batch_size,level5data):
 
 if __name__ == '__main__':
     
+    # sym links in data dir need to be changed before running this script
+
     data_path = cfg.DATA.DATA_PATH
     
     json_path = cfg.DATA.TEST_JSON_PATH

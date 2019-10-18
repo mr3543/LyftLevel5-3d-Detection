@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
+import numpy as np
 
 class BEVImageDataset(torch.utils.data.Dataset):
     def __init__(self, input_filepaths, target_filepaths, map_filepaths=None):

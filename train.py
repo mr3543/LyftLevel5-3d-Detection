@@ -6,10 +6,16 @@ import glob
 import numpy as np
 import os
 
+from lyft_dataset_sdk.lyftdataset import LyftDataset
 from dataset import BEVImageDataset
 from model import get_unet_model
 from config import cfg
 from tqdm import tqdm
+from evaluate import evaluate_map
+
+data_path = cfg.DATA.DATA_PATH
+json_path = cfg.DATA.TRAIN_JSON_PATH
+l5d = LyftDataset(data_path = data_path,json_path=json_path,verbose=True)
 
 train_data_folder = cfg.DATA.TRAIN_DATA_FOLDER
 
@@ -27,8 +33,9 @@ class_weights = class_weights.to(device)
 
 batch_size = cfg.TRAIN.BATCH_SIZE
 epochs = cfg.TRAIN.NUM_EPOCHS
+bev_shape = cfg.DATA.BEV_SHAPE
 
-model = get_unet_model(num_output_classes = len(cfg.DATA.CLASSES) + 1)
+model = get_unet_model(num_output_classes = len(cfg.DATA.CLASSES) + 1,in_channels=bev_shape[-1])
 model = model.to(device)
 
 optim = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -60,5 +67,11 @@ for epoch in range(1, epochs+1):
     checkpoint_filename = "unet_checkpoint_epoch_{}.pth".format(epoch)
     checkpoint_filepath = os.path.join(cfg.DATA.ARTIFACTS_FOLDER, checkpoint_filename)
     torch.save(model.state_dict(), checkpoint_filepath)
+
+    if epoch % 3 == 0:
+
+        val_map = evaluate_map(cfg.DATA.VAL_DATA_FOLDER,epoch,l5d)
+        print('VALIDATION SET mAP: ',val_map)
+
 
     
