@@ -39,3 +39,23 @@ class BEVImageDataset(torch.utils.data.Dataset):
         target = torch.from_numpy(target)
         
         return im, target, sample_token
+
+
+class BEVTestImageDataset(torch.utils.data.Dataset):
+    def __init__(self,input_filepaths):
+        self.input_filepaths = input_filepaths
+
+    def __len__(self):
+        return len(self.input_filepaths)
+
+    def __getitem__(self,idx):
+        input_filepath = self.input_filepaths[idx]
+        sample_token = input_filepath.split("/")[-1].replace("_input.png","")
+        im = cv2.imread(input_filepath,cv2.IMREAD_UNCHANGED)
+
+        im = im.astype(np.float32)/255
+        im = torch.from_numpy(im.transpose(2,0,1))
+
+        return im,None,sample_token
+
+    

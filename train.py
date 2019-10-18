@@ -2,10 +2,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
+import glob
+import numpy as np
+import os
 
 from dataset import BEVImageDataset
 from model import get_unet_model
 from config import cfg
+from tqdm import tqdm
 
 train_data_folder = cfg.DATA.TRAIN_DATA_FOLDER
 
@@ -15,6 +19,9 @@ target_filepaths = sorted(glob.glob(os.path.join(train_data_folder, "*_target.pn
 train_dataset = BEVImageDataset(input_filepaths, target_filepaths)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+classes = cfg.DATA.CLASSES
+
 class_weights = torch.from_numpy(np.array([0.2] + [1.0]*len(classes), dtype=np.float32))
 class_weights = class_weights.to(device)
 
@@ -22,7 +29,7 @@ batch_size = cfg.TRAIN.BATCH_SIZE
 epochs = cfg.TRAIN.NUM_EPOCHS
 
 model = get_unet_model(num_output_classes = len(cfg.DATA.CLASSES) + 1)
-model = mode.to(device)
+model = model.to(device)
 
 optim = torch.optim.Adam(model.parameters(), lr=1e-3)
 dataloader = torch.utils.data.DataLoader(train_dataset, batch_size, shuffle=True, num_workers=os.cpu_count()*2)
@@ -33,7 +40,7 @@ for epoch in range(1, epochs+1):
     print("Epoch", epoch)
     
     epoch_losses = []
-    progress_bar = tqdm_notebook(dataloader)
+    progress_bar = tqdm(dataloader)
     
     for ii, (X, target, sample_ids) in enumerate(progress_bar):
         X = X.to(device)  # [N, 3, H, W]
@@ -46,9 +53,6 @@ for epoch in range(1, epochs+1):
         optim.step()
         
         epoch_losses.append(loss.detach().cpu().numpy())
-
-        if ii == 0:
-            visualize_predictions(X, prediction, target)
     
     print("Loss:", np.mean(epoch_losses))
     all_losses.extend(epoch_losses)

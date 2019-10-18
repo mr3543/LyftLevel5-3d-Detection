@@ -13,15 +13,17 @@ import pandas as pd
 import cv2
 from PIL import Image
 import numpy as np
-from tqdm import tqdm, tqdm_notebook
+from tqdm import tqdm
 import scipy
 import scipy.ndimage
 import scipy.special
+import pickle
 from scipy.spatial.transform import Rotation as R
 
 from lyft_dataset_sdk.lyftdataset import LyftDataset
 from lyft_dataset_sdk.utils.data_classes import LidarPointCloud, Box, Quaternion
 from lyft_dataset_sdk.utils.geometry_utils import view_points, transform_matrix
+from data_augmentation import augment_pc
 
 from config import cfg
 
@@ -117,12 +119,15 @@ def draw_boxes(im, voxel_size, boxes, classes, z_offset=0.0):
 
         cv2.drawContours(im, np.int0([corners_voxel]), 0, (class_color, class_color, class_color), -1)
 
-def prepare_training_data_for_scene(first_sample_token, output_folder, bev_shape, voxel_size, z_offset, box_scale,num_sweeps,min_distance,classes,level5data):
+def prepare_training_data_for_scene(first_sample_token, output_folder, bev_shape, voxel_size, z_offset, 
+                                    box_scale,num_sweeps,min_distance,classes,level5data,augment=True):
     """
     Given a first sample token (in a scene), output rasterized input volumes and targets in birds-eye-view perspective.
 
     """
     sample_token = first_sample_token
+    if augment:
+        box_db = pickle.load(open(cfg.DATA.BOX_DB_FILE,'rb'))
     
     while sample_token:
         
@@ -130,14 +135,9 @@ def prepare_training_data_for_scene(first_sample_token, output_folder, bev_shape
 
         sample_lidar_token = sample["data"]["LIDAR_TOP"]
         lidar_data = level5data.get("sample_data", sample_lidar_token)
-        lidar_filepath = level5data.get_sample_data_path(sample_lidar_token)
 
         ego_pose = level5data.get("ego_pose", lidar_data["ego_pose_token"])
         calibrated_sensor = level5data.get("calibrated_sensor", lidar_data["calibrated_sensor_token"])
-
-
-        global_from_car = transform_matrix(ego_pose['translation'],
-                                           Quaternion(ego_pose['rotation']), inverse=False)
 
         car_from_sensor = transform_matrix(calibrated_sensor['translation'], Quaternion(calibrated_sensor['rotation']),
                                             inverse=False)
@@ -150,11 +150,15 @@ def prepare_training_data_for_scene(first_sample_token, output_folder, bev_shape
             sample_token = sample["next"]
             continue
         
-        bev = create_voxel_pointcloud(lidar_pointcloud.points, bev_shape, voxel_size=voxel_size, z_offset=z_offset)
-        bev = normalize_voxel_intensities(bev)
-
-        
+        lidar_points = lidar_pointcloud.points
         boxes = level5data.get_boxes(sample_lidar_token)
+        #augment data here
+        if augment:
+            lidar_points,boxes = augment_pc(lidar_points,boxes,box_db)
+
+
+        bev = create_voxel_pointcloud(lidar_points, bev_shape, voxel_size=voxel_size, z_offset=z_offset)
+        bev = normalize_voxel_intensities(bev)
 
         target = np.zeros_like(bev)
 
@@ -213,6 +217,7 @@ if __name__ == '__main__':
     num_sweeps = cfg.DATA.NUM_SWEEPS
     min_distance = cfg.DATA.MIN_DISTANCE
     classes = cfg.DATA.CLASSES
+    augment = True
 
     for df, data_folder in [(train_df, train_data_folder), (validation_df, validation_data_folder)]:
         print("Preparing data into {} using {} workers".format(data_folder, num_workers))
@@ -224,7 +229,7 @@ if __name__ == '__main__':
                            output_folder=data_folder, bev_shape=bev_shape, voxel_size=voxel_size, 
                            z_offset=z_offset, box_scale=box_scale,
                            num_sweeps=num_sweeps,min_distance=min_distance,
-                           classes=classes,level5data=l5d)
+                           classes=classes,level5data=l5d,augment=augment)
 
         pool = Pool(num_workers)
         for _ in tqdm(pool.imap_unordered(process_func, first_samples), total=len(first_samples)):
@@ -232,3 +237,4 @@ if __name__ == '__main__':
         
         pool.close()
         del pool
+        augment = False

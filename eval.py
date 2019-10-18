@@ -3,19 +3,51 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
 import cv2
+import os
 import json
+import numpy as np
+import glob 
+from tqdm import tqdm 
 
+from lyft_dataset_sdk.lyftdataset import LyftDataset
+from lyft_dataset_sdk.utils.data_classes import LidarPointCloud, Box, Quaternion
+from lyft_dataset_sdk.utils.geometry_utils import view_points, transform_matrix
+from lyft_dataset_sdk.eval.detection.mAP_evaluation import Box3D, recall_precision, get_average_precisions
 
-from lyft_dataset_sdk.eval.detection.mAP_evaluation import Box3D, recall_precision
-
-from dataset import BEVImageDataset
+from dataset import BEVImageDataset,BEVTestImageDataset
 from config import cfg
+from model import get_unet_model
+
+def eval_for_kaggle(l5d,test_data_folder,epoch_to_load):
+    
+    batch_size = cfg.TRAIN.BATCH_SIZE
+    
+    input_filepaths = sorted(glob.glob(test_data_folder, "*_input.png"))
+
+    sample_tokens = [filename.split("/")[-1].replace("_input.png","") for filename in input_filepaths]
+
+    num_inputs = len(input_filepaths)
+
+    test_dataset = BEVTestImageDataset(input_filepaths)
+    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size, shuffle=False, num_workers=os.cpu_count())
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = get_unet_model(num_output_classes=1+len(classes))
+    model = model.to(device)
+
+    checkpoint_filename = "unet_checkpoint_epoch_{}.pth".format(epoch_to_load)
+    checkpoint_filepath = os.path.join(cfg.DATA.ARTIFACTS_FOLDER, checkpoint_filename)
+    model.load_state_dict(torch.load(checkpoint_filepath))
+
+    boxes = make_prediction_boxes(model,test_dataloader,num_inputs,batch_size,l5d)
+    write_submission(boxes)
+    
 
 def load_groundtruth_boxes(level5data, sample_tokens):
     gt_box3ds = []
 
     # Load annotations and filter predictions and annotations.
-    for sample_token in tqdm_notebook(sample_tokens):
+    for sample_token in tqdm(sample_tokens):
 
         sample = level5data.get('sample', sample_token)
         sample_annotation_tokens = sample['anns']
@@ -45,46 +77,50 @@ def load_groundtruth_boxes(level5data, sample_tokens):
 def write_for_map(boxes,filepath,gt=False):
     l = [{'sample_token':box.sample_token,
       'translation':box.translation,
-      'size':box.size
+      'size':box.size,
       'rotation':box.rotation,
-      'name':box.name}]
+      'name':box.name} for box in boxes]
 
     if not gt:
         for i in range(len(boxes)):
-            l[i]['score'] = box.score
+            l[i]['score'] = boxes[i].score
 
     with open(filepath,'w') as out:
         json.dump(l,out)
     
-def write_submission(pred_boxes):
+def write_submission(boxes):
     sub = {}
-    for i in range(len(pred_boxes)):
-        yaw = 2*np.arccos(pred_boxes[i].rotation[0])
-        pred = str(pred_boxesi[i].score/255) + ' ' + \
-               str(pred_boxes[i].center_x) + ' ' + \
-               str(pred_boxes[i].center_y) + ' ' + \
-               str(pred_boxes[i].center_z) + ' ' + \
-               str(pred_boxes[i].width) + ' ' + \
-               str(pred_boxes[i].length) + ' ' + \
-               str(pred_boxes[i].height) + ' ' + \
+    for i in range(len(boxes)):
+        yaw = 2*np.arccos(boxes[i].rotation[0])
+        pred = str(boxes[i].score/255) + ' ' + \
+               str(boxes[i].center_x) + ' ' + \
+               str(boxes[i].center_y) + ' ' + \
+               str(boxes[i].center_z) + ' ' + \
+               str(boxes[i].width) + ' ' + \
+               str(boxes[i].length) + ' ' + \
+               str(boxes[i].height) + ' ' + \
                str(yaw) + ' ' + \
-               str(pred_boxes[i].name) + ' '
+               str(boxes[i].name) + ' '
 
-        if pred_boxes[i].sample_token in sub.keys():
-            sub[pred_boxes[i].sample_token] += pred
+        if boxes[i].sample_token in sub.keys():
+            sub[boxes[i].sample_token] += pred
         else:
-            sub[pred_boxes[i].sample_token] = pred
+            sub[boxes[i].sample_token] = pred
 
     sub = pd.DataFrame(list(sub.items()))
     sub.columns = ['Id','PredictionString']
     sub.to_csv('lyft3d_pred.csv',index=False)
 
-def evaluate_map(data_folder,level5data):
+def evaluate_map(val_data_folder,epoch_to_load,level5data):
     
-    epoch_to_load = cfg.TRAIN.NUM_EPOCHS
     batch_size = cfg.TRAIN.BATCH_SIZE
-    
-    input_filepaths = sorted(glob.glob(val_data_folder, "*_input.png")))
+    classes = cfg.DATA.CLASSES
+
+    input_filepaths = sorted(glob.glob(val_data_folder, "*_input.png"))
+    target_filepaths = sorted(glob.glob(val_data_folder, "*_target.png"))
+
+    sample_tokens = [filename.split("/")[-1].replace("_input.png","") for filename in input_filepaths]
+
     num_inputs = len(input_filepaths)
 
     validation_dataset = BEVImageDataset(input_filepaths, target_filepaths)
@@ -95,23 +131,32 @@ def evaluate_map(data_folder,level5data):
     model = model.to(device)
 
     checkpoint_filename = "unet_checkpoint_epoch_{}.pth".format(epoch_to_load)
-    checkpoint_filepath = os.path.join(ARTIFACTS_FOLDER, checkpoint_filename)
+    checkpoint_filepath = os.path.join(cfg.DATA.ARTIFACTS_FOLDER, checkpoint_filename)
     model.load_state_dict(torch.load(checkpoint_filepath))
 
     boxes = make_prediction_boxes(model,validation_dataloader,num_inputs,batch_size,level5data)
     gt_box3ds = load_groundtruth_boxes(level5data, sample_tokens)
-  
-def make_prediction_boxes(model,validation_dataloader,num_inputs,batch_size,level5data):
+    
+    map_list = cfg.DATA.MAP_LIST
+
+    return np.mean([get_average_precisions(gt_box3ds,boxes,cfg.DATA.CLASSES,iou) for iou in map_list])
+
+
+def make_prediction_boxes(model,dataloader,num_inputs,batch_size,level5data):
 
     classes = cfg.DATA.CLASSES
     height = cfg.DATA.BEV_SHAPE[0]
     width = cfg.DATA.BEV_SHAPE[1]
+    device = cfg.TRAIN.DEVICE
+    bev_shape = cfg.DATA.BEV_SHAPE
+    voxel_size = cfg.DATA.VOXEL_SIZE
+    z_offset = cfg.DATA.Z_OFFSET
 
-    # We quantize to uint8 here to conserve memory. We're allocating >20GB of memory otherwise.
+    # we quantize to uint8 here to conserve memory. we're allocating >20GB of memory otherwise.
     predictions = np.zeros((num_inputs, 1+len(classes), height, width), dtype=np.uint8) # [N,C,H,W]
 
     sample_tokens = []
-    progress_bar = tqdm(validation_dataloader)
+    progress_bar = tqdm(dataloader)
 
     # evaluate samples with loaded model - predictions are gathered in 'predictions'
     with torch.no_grad():
@@ -143,7 +188,7 @@ def make_prediction_boxes(model,validation_dataloader,num_inputs,batch_size,leve
     detection_scores = []
     detection_classes = []
 
-    for i in tqdm_notebook(range(len(predictions))):
+    for i in tqdm(range(len(predictions))):
         prediction_opened = predictions_opened[i] # [H,W]
         probability_non_class0 = predictions_non_class0[i] # [H,W]
         class_probability = predictions[i] # [C,H,W]
@@ -185,7 +230,7 @@ def make_prediction_boxes(model,validation_dataloader,num_inputs,batch_size,leve
     height_dict = cfg.DATA.AVG_CAT_HEIGHT
 
     # This could use some refactoring..
-    for (sample_token, sample_boxes, sample_detection_scores, sample_detection_class) in tqdm_notebook(zip(sample_tokens, detection_boxes, detection_scores, detection_classes), total=len(sample_tokens)):
+    for (sample_token, sample_boxes, sample_detection_scores, sample_detection_class) in tqdm(zip(sample_tokens, detection_boxes, detection_scores, detection_classes), total=len(sample_tokens)):
         sample_boxes = sample_boxes.reshape(-1, 2) # (N, 4, 2) -> (N*4, 2)
         sample_boxes = sample_boxes.transpose(1,0) # (N*4, 2) -> (2, N*4)
 
@@ -216,8 +261,6 @@ def make_prediction_boxes(model,validation_dataloader,num_inputs,batch_size,leve
         # (3, N*4) -> (N, 4, 3)
         sample_boxes = sample_boxes.transpose(1,0).reshape(-1, 4, 3)
 
-
-        # We don't know the height of our boxes, let's assume every object is the same height.
         box_height = [height_dict[name] for name in sample_detection_class]
 
         # Note: Each of these boxes describes the ground corners of a 3D box.
@@ -272,9 +315,13 @@ def make_prediction_boxes(model,validation_dataloader,num_inputs,batch_size,leve
 
 if __name__ == '__main__':
     
-    data_path = 
-    json_path = 
-    l5d = LyftDataset(
+    data_path = cfg.DATA.DATA_PATH
+    
+    json_path = cfg.DATA.TEST_JSON_PATH
+    
+    l5d = LyftDataset(data_path = data_path,json_path=json_path)
+    
+    eval_for_kaggle(l5d)   
 
 
 
