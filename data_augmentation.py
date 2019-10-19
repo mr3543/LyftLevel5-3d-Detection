@@ -11,7 +11,7 @@ import pickle
 from PIL import Image
 import numpy as np
 import random
-from tqdm import tqdm, tqdm_notebook
+from tqdm import tqdm
 import scipy
 import scipy.ndimage
 import scipy.special
@@ -22,7 +22,7 @@ from shapely.geometry import Polygon
 from lyft_dataset_sdk.lyftdataset import LyftDataset
 from lyft_dataset_sdk.utils.data_classes import LidarPointCloud, Box, Quaternion
 from lyft_dataset_sdk.utils.geometry_utils import view_points, transform_matrix, points_in_box
-from data_prep import scale_boxes,move_boxes_to_car_space
+from box_utils import scale_boxes,move_boxes_to_car_space
 from config import cfg
 
 
