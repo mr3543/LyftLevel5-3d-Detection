@@ -9,6 +9,7 @@ import os
 os.environ["OMP_NUM_THREADS"] = "1"
 
 import sys
+import gc
 import pandas as pd
 import cv2
 from PIL import Image
@@ -28,15 +29,13 @@ from data_augmentation import augment_pc
 from config import cfg
 
 def prepare_training_data_for_scene(first_sample_token, output_folder, bev_shape, voxel_size, z_offset, 
-                                    box_scale,num_sweeps,min_distance,classes,level5data,augment=True):
+                                    box_scale,num_sweeps,min_distance,classes,level5data,box_db,augment=True):
     """
     Given a first sample token (in a scene), output rasterized input volumes and targets in birds-eye-view perspective.
 
     """
     sample_token = first_sample_token
-    if augment:
-        box_db = pickle.load(open(cfg.DATA.BOX_DB_FILE,'rb'))
-    
+   
     while sample_token:
         
         sample = level5data.get("sample", sample_token)
@@ -126,6 +125,9 @@ if __name__ == '__main__':
     min_distance = cfg.DATA.MIN_DISTANCE
     classes = cfg.DATA.CLASSES
     augment = True
+    box_db = pickle.load(open(cfg.DATA.BOX_DB_FILE,'rb'))
+    print('PICKLE LOADED')
+    sys.exit(1)
 
     for df, data_folder in [(train_df, train_data_folder), (validation_df, validation_data_folder)]:
         print("Preparing data into {} using {} workers".format(data_folder, num_workers))
@@ -146,3 +148,5 @@ if __name__ == '__main__':
         pool.close()
         del pool
         augment = False
+        del box_db
+        gc.collect()

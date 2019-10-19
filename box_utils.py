@@ -1,6 +1,7 @@
 import sys
 import cv2
 import numpy as np
+from lyft_dataset_sdk.utils.data_classes import LidarPointCloud, Box, Quaternion
 
 def create_transformation_matrix_to_voxel_space(shape, voxel_size, offset):
     """

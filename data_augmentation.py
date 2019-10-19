@@ -60,8 +60,8 @@ def make_box_db(train_df,l5d):
             move_boxes_to_car_space(boxes, ego_pose)
             scale_boxes(boxes, box_scale)
             for box in boxes:
-                point_mask = points_in_box(box,lidar_pointcloud.points[:4,:])
-                box_points = lidar_pointcloud.points[point_mask]
+                point_mask = points_in_box(box,lidar_pointcloud.points[:3,:])
+                box_points = lidar_pointcloud.points[:,point_mask]
                 if box.name not in box_db:
                     box_db[box.name] = [{'lidar':box_points,'box':box}]
                 else:
@@ -103,9 +103,10 @@ def augment_pc(pc,boxes,box_db):
         random_translation = .25 * np.random.randn(3)
         box.center += random_translation
 
-        points_mask = points_in_box(box,pc[:4,:])
-        box_points = pc[points_mask]
-        box_points[:4,:] += random_translation
+        points_mask = points_in_box(box,pc[:3,:])
+        box_points = pc[:,points_mask]
+        box_t = np.transpose(box_points[:3,:])
+        box_t += random_translation
 
         random_angle = np.random.uniform(-np.pi,np.pi)
         quat = Quaternion(axis=[0,0,1],angle=random_angle)
