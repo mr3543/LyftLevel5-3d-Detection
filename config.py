@@ -28,6 +28,7 @@ cfg.DATA.VAL_DATA_FOLDER = osp.join(cfg.DATA.ARTIFACTS_FOLDER,'bev_val_data')
 cfg.DATA.TEST_DATA_FOLDER = osp.join(cfg.DATA.ARTIFACTS_FOLDER,'bev_test_data')
 
 cfg.DATA.BOX_DB_FILE = osp.join(cfg.DATA.ARTIFACTS_FOLDER,'box_db.pkl')
+cfg.DATA.BOX_TO_LIDAR_DB_FILE = osp.join(cfg.DATA.ARTIFACTS_FOLDER,'box_to_lidar_db.pkl')
 
 cfg.DATA.VOXEL_SIZE = (0.4,0.4,.2)
 cfg.DATA.Z_OFFSET = 0.0

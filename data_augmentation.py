@@ -60,7 +60,7 @@ def make_box_db(train_df,l5d):
             move_boxes_to_car_space(boxes, ego_pose)
             scale_boxes(boxes, box_scale)
             for box in boxes:
-                point_mask = points_in_box(lidar_pointcloud.points,box)
+                point_mask = points_in_box(box,lidar_pointcloud.points[:4,:])
                 box_points = lidar_pointcloud.points[point_mask]
                 if box.name not in box_db:
                     box_db[box.name] = [{'lidar':box_points,'box':box}]
@@ -70,7 +70,6 @@ def make_box_db(train_df,l5d):
             sample_token = sample['next']
         
     pickle.dump(box_db,open(cfg.DATA.BOX_DB_FILE,'wb'))
-
 
 
 def augment_pc(pc,boxes,box_db):
@@ -84,6 +83,7 @@ def augment_pc(pc,boxes,box_db):
         samples_to_add = [box_db[c][i] for i in sample_inds]
 
         for sample in samples_to_add:
+
             sample_box = sample['box']
             # we don't add the sample_box to the lidar cloud if it intersects with another 
             # object in the cloud
@@ -94,9 +94,24 @@ def augment_pc(pc,boxes,box_db):
             sample_polygon = Polygon([sample_box.bottom_corners[:2,:]])
             if not any([sample_polygon.intersection(Polygon(box.bottom_corners[:2,:])).area for box in boxes]):
                 # apply transformations to box and points, then add to lidar
-                
                 pc.append(sample['lidar'])
                 boxes.append(sample_box)
+    
+    for box in boxes:
+        # apply random rotation and translation to the 
+        # ground truth boxes and their points
+        random_translation = .25 * np.random.randn(3)
+        box.center += random_translation
+
+        points_mask = points_in_box(box,pc[:4,:])
+        box_points = pc[points_mask]
+        box_points[:4,:] += random_translation
+
+        random_angle = np.random.uniform(-np.pi,np.pi)
+        quat = Quaternion(axis=[0,0,1],angle=random_angle)
+        box.orientation *= quat
+        rot_matrix = quat.rotation_matrix
+        box_points = np.dot(rot_matrix,box_points)
 
     return pc,boxes
 
