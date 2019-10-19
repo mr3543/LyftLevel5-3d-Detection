@@ -124,10 +124,8 @@ if __name__ == '__main__':
     num_sweeps = cfg.DATA.NUM_SWEEPS
     min_distance = cfg.DATA.MIN_DISTANCE
     classes = cfg.DATA.CLASSES
-    augment = True
-    box_db = pickle.load(open(cfg.DATA.BOX_DB_FILE,'rb'))
-    print('PICKLE LOADED')
-    sys.exit(1)
+    augment = False
+    box_db = None
 
     for df, data_folder in [(train_df, train_data_folder), (validation_df, validation_data_folder)]:
         print("Preparing data into {} using {} workers".format(data_folder, num_workers))
@@ -139,7 +137,7 @@ if __name__ == '__main__':
                            output_folder=data_folder, bev_shape=bev_shape, voxel_size=voxel_size, 
                            z_offset=z_offset, box_scale=box_scale,
                            num_sweeps=num_sweeps,min_distance=min_distance,
-                           classes=classes,level5data=l5d,augment=augment)
+                           classes=classes,level5data=l5d,box_db = box_db,augment=augment)
 
         pool = Pool(num_workers)
         for _ in tqdm(pool.imap_unordered(process_func, first_samples), total=len(first_samples)):
